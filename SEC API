@@ -1,0 +1,47 @@
+import requests
+import time
+from decimal import Decimal
+import numpy as np
+import pandas as pd
+import time
+
+# ---------------- CONFIG ---------------- #
+
+HEADERS = {
+    "User-Agent": "YourAppName/1.0 (your.email@example.com)",
+    "Accept-Encoding": "gzip, deflate",
+    "Host": "data.sec.gov"
+}
+
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+
+# ---------------- FUNCTIONS ---------------- #
+
+def get_company_facts(cik):
+    cik = str(cik).zfill(10)
+    url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+    r = SESSION.get(url)
+    r.raise_for_status()
+    return r.json()
+
+def get_metric_from_year(cik, tag, year):
+    data = get_company_facts(cik)
+    try:
+        units = data["facts"]["us-gaap"][tag]["units"]
+    except KeyError:
+        return None
+    vals = [e for u in units.values() for e in u
+            if e.get("form") == "10-K" and e.get("end","").startswith(str(year))]
+    if not vals:
+        return None
+    vals.sort(key=lambda x: x["filed"], reverse=True)
+    return f'{vals[0]["val"]:.3e}'
+
+def get_available_gaap_metrics(cik):
+    data = get_company_facts(cik)
+    try:
+        gaap_facts = data["facts"]["us-gaap"]
+    except KeyError:
+        return []
+    return sorted(gaap_facts.keys())
