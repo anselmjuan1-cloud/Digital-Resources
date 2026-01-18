@@ -45,3 +45,37 @@ def get_available_gaap_metrics(cik):
     except KeyError:
         return []
     return sorted(gaap_facts.keys())
+
+def get_metric_from_last_10q(cik, tag, n):
+    data = get_company_facts(cik)
+    try:
+        units = data["facts"]["us-gaap"][tag]["units"]
+    except KeyError:
+        return None
+
+    vals = []
+    for u in units.values():
+        for e in u:
+            if e.get("form") != "10-Q":
+                continue
+            if "start" not in e or "end" not in e:
+                continue
+
+            start = datetime.fromisoformat(e["start"])
+            end = datetime.fromisoformat(e["end"])
+            period_length_days = (end - start).days  # ← period length in days
+
+            if (70 < period_length_days < 100) & (e['end'] not in [val['period_end'] for val in vals]):
+                vals.append({
+                    "period_end": e["end"],
+                    "filed": e["filed"],
+                    "value": float(e["val"]),
+                    "period_length_days": period_length_days
+                })
+
+    if not vals:
+        return None
+
+    vals.sort(key=lambda x: x["period_end"], reverse=True)
+
+    return vals[:n]
